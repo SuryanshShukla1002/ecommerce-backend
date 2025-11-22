@@ -1,13 +1,66 @@
 import express from "express";
 import cors from "cors";
+import bcrypt from "bcrypt";
 import initalizeDataBase from './db/db.config.js';
 import Product from './model/products.models.js';
 import ProductItems from './model/productItems.models.js';
+import User from './model/user.models.js';
 const app = express();
 
 initalizeDataBase();
 app.use(cors());
 app.use(express.json());
+
+app.post("/users/signup", async (req, res) => {
+    try {
+        const { firstname, lastname, email, password } = req.body;
+
+        const ifUserExists = await User.findOne({ email });
+        if (ifUserExists) {
+            return res.status(400).json({ error: "Email already exists" });
+        }
+
+        const hashpassword = await bcrypt.hash(password, 10);
+
+        const newUser = new User({
+            firstname,
+            lastname,
+            email,
+            password: hashpassword,
+        });
+
+        await newUser.save();
+
+        res.status(201).json({ message: "Signup Successful" });
+    } catch (err) {
+        res.status(500).json({ message: "Signup failed" });
+    }
+});
+
+app.post("/users/login", async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(400).json({ message: "Invalid email or password" });
+        }
+        const valid = await bcrypt.compare(password, user.password);
+        if (!valid) {
+            return res.status(400).json({ msg: "Invalid email or password" });
+        }
+        return res.status(200).json({
+            message: "Login Successful",
+            user: {
+                firstname: user.firstname,
+                lastname: user.lastname,
+                email: user.email
+            }
+        });
+
+    } catch (err) {
+        return res.status(500).json({ message: "Login failed" });
+    }
+});
 
 
 async function createProduct(newData) {
@@ -20,7 +73,6 @@ async function createProduct(newData) {
     }
 }
 
-// createProduct(newData);
 
 app.post("/products", async (req, res) => {
     try {
